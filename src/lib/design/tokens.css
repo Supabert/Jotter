@@ -1,0 +1,94 @@
+/*
+  Panel & QRH tokens.
+
+  Night and day are not a preference toggle dressed up — an instrument panel has
+  day lighting and night lighting, and this is that.
+
+  Both grounds are neutral grey: R, G and B are equal at every step. There is no
+  hue in the chrome at all, so nothing casts warm or cool as the lighting
+  changes. If a grey ever drifts off-neutral, that is a bug.
+
+  Colour is annunciator state only. If a colour appears anywhere it is not
+  reporting a state, that is a bug.
+*/
+
+:root {
+  --panel-0: #141414;
+  --panel-1: #1b1b1b;
+  --panel-2: #222222;
+  --panel-3: #2a2a2a;
+  --hairline: #363636;
+  --hairline-soft: #262626;
+  --bezel: rgba(255, 255, 255, 0.05);
+  --legend: #949494;
+  --legend-dim: #6a6a6a;
+  --ink: #e9e9e9;
+  --ink-soft: #bdbdbd;
+
+  --anc-green: #58ad76;
+  --anc-amber: #d69a2e;
+  --anc-white: #d0d0d0;
+  --anc-red: #c25f52;
+  --anc-green-bg: rgba(88, 173, 118, 0.14);
+  --anc-amber-bg: rgba(214, 154, 46, 0.14);
+  --anc-red-bg: rgba(194, 95, 82, 0.14);
+
+  --select: rgba(214, 154, 46, 0.26);
+  --focus: #d69a2e;
+
+  --font-legend: 'Bahnschrift', 'Segoe UI Semibold', system-ui, sans-serif;
+  --font-body: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+
+  --wdth-legend: 'wdth' 80;
+
+  --r: 2px;
+  --r-lg: 3px;
+
+  --row: 26px;
+  --rail: 34px;
+  --strip: 24px;
+  --sidebar-w: 252px;
+
+  --dur-blip: 90ms;
+  --dur-fast: 130ms;
+  --dur-base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0.1, 1);
+
+  color-scheme: dark;
+}
+
+:root[data-theme='day'] {
+  --panel-0: #d2d2d2;
+  --panel-1: #dedede;
+  --panel-2: #f4f4f4;
+  --panel-3: #e9e9e9;
+  --hairline: #bababa;
+  --hairline-soft: #cbcbcb;
+  --bezel: rgba(255, 255, 255, 0.75);
+  --legend: #5e5e5e;
+  --legend-dim: #868686;
+  --ink: #191919;
+  --ink-soft: #414141;
+
+  --anc-green: #2f7d4c;
+  --anc-amber: #9a6a10;
+  --anc-white: #4e4e4e;
+  --anc-red: #a1392c;
+  --anc-green-bg: rgba(47, 125, 76, 0.13);
+  --anc-amber-bg: rgba(154, 106, 16, 0.15);
+  --anc-red-bg: rgba(161, 57, 44, 0.12);
+
+  --select: rgba(154, 106, 16, 0.22);
+  --focus: #9a6a10;
+
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-blip: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+  }
+}

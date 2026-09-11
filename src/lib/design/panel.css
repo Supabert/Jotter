@@ -1,0 +1,213 @@
+/*
+  The shared material grammar. Everything in Jotter is built from these four
+  moves and nothing else: a plane, a hairline, one inset bezel highlight, and an
+  annunciator. No shadows, no gradients, no glow, no radius above 3px.
+*/
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--panel-0);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--select);
+}
+
+#app {
+  height: 100%;
+}
+
+/* A machined plate: flat fill, hairline edge, one inset highlight along the
+   top. That highlight is the entire depth budget for the app. */
+.plate {
+  background: var(--panel-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  box-shadow: inset 0 1px 0 0 var(--bezel);
+}
+
+/* Panel legend type: condensed DIN caps. Used for every label, tab, button and
+   column header — never for anything the user wrote. */
+.legend {
+  font-family: var(--font-legend);
+  font-variation-settings: var(--wdth-legend);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+  color: var(--legend);
+  line-height: 1;
+}
+
+.legend-sm {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* Annunciator: a lamp that reports one state. The dot is the lamp, the tint is
+   its wash. Nothing decorative ever uses these classes. */
+.anc {
+  --lamp: var(--anc-white);
+  --lamp-bg: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lamp);
+}
+
+.anc::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lamp);
+  flex: none;
+}
+
+.anc-green {
+  --lamp: var(--anc-green);
+  --lamp-bg: var(--anc-green-bg);
+}
+.anc-amber {
+  --lamp: var(--anc-amber);
+  --lamp-bg: var(--anc-amber-bg);
+}
+.anc-red {
+  --lamp: var(--anc-red);
+  --lamp-bg: var(--anc-red-bg);
+}
+.anc-off {
+  --lamp: var(--legend-dim);
+}
+
+/* Panel switch: the only button in the app. Momentary by default, latched when
+   aria-pressed is true. */
+.sw {
+  appearance: none;
+  font-family: var(--font-legend);
+  font-variation-settings: var(--wdth-legend);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--legend);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  height: var(--row);
+  min-width: var(--row);
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: default;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.sw:hover:not(:disabled) {
+  background: var(--panel-3);
+  color: var(--ink-soft);
+  border-color: var(--hairline);
+}
+
+.sw:active:not(:disabled) {
+  background: var(--panel-1);
+}
+
+.sw[aria-pressed='true'] {
+  background: var(--panel-1);
+  border-color: var(--hairline);
+  color: var(--anc-amber);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.sw:disabled {
+  color: var(--legend-dim);
+  opacity: 0.55;
+}
+
+.sw-icon {
+  padding: 0;
+  width: var(--row);
+}
+
+/* Focus is a hard 1px ring in the caution colour. Instruments do not glow. */
+:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 1px;
+}
+
+input[type='text'],
+input[type='search'],
+input[type='date'],
+select {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--panel-0);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  height: var(--row);
+  padding: 0 7px;
+}
+
+input::placeholder {
+  color: var(--legend-dim);
+}
+
+.rule {
+  height: 1px;
+  background: var(--hairline);
+  border: 0;
+  margin: 0;
+}
+
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+
+.strike {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  color: var(--legend-dim);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
