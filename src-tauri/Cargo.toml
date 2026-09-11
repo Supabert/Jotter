@@ -2,7 +2,7 @@
 name = "jotter"
 version = "0.1.0"
 description = "A local rich-text notepad replacement with an actions page"
-authors = ["Fortuvia LLC"]
+authors = ["Supabert"]
 edition = "2021"
 rust-version = "1.82"
 
