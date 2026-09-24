@@ -4,6 +4,7 @@ import './lib/design/tokens.css';
 import './lib/design/panel.css';
 import App from './App.svelte';
 import Capture from './lib/components/Capture.svelte';
+import ImageViewer from './lib/components/ImageViewer.svelte';
 
 // Dev-only test surface. `import.meta.env.DEV` is a compile-time constant, so
 // this block and everything it references are dropped from the release bundle
@@ -29,6 +30,7 @@ if (import.meta.env.DEV) {
 // One bundle serves both windows; the label decides which one this is. Keeping
 // them in one build means the capture window inherits the same design system
 // and costs no second asset load.
-const isCapture = getCurrentWindow().label === 'capture';
+const label = getCurrentWindow().label;
+const root = label === 'capture' ? Capture : label === 'viewer' ? ImageViewer : App;
 
-mount(isCapture ? Capture : App, { target: document.getElementById('app')! });
+mount(root, { target: document.getElementById('app')! });

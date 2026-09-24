@@ -3,6 +3,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { emit, listen } from '@tauri-apps/api/event';
   import { api } from '../api';
+  import { store } from '../store.svelte';
 
   const DRAFT_KEY = 'jotter.capture.draft';
 
@@ -15,12 +16,21 @@
     // Whatever survived a crash, a hide, or a reboot comes straight back. The
     // capture window's whole promise is that nothing typed into it is ever lost.
     text = localStorage.getItem(DRAFT_KEY) ?? '';
+    void store.loadTheme();
     void focusBox();
 
-    const unFocus = listen('capture:focus', () => void focusBox());
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    const onScheme = () => store.theme === 'system' && store.applyTheme();
+    media.addEventListener('change', onScheme);
+
+    const unFocus = listen('capture:focus', () => {
+      void store.loadTheme();
+      void focusBox();
+    });
     const unFlush = listen('capture:flush', () => void file());
 
     return () => {
+      media.removeEventListener('change', onScheme);
       unFocus.then((f) => f());
       unFlush.then((f) => f());
     };

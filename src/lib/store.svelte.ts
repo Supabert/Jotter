@@ -606,6 +606,15 @@ class Store {
     document.documentElement.dataset.theme = this.lighting;
   }
 
+  /** For the capture and image windows: they need the lighting, not the whole
+      store. Re-read on every summon, since the setting can change while the
+      window sits hidden. */
+  async loadTheme(): Promise<void> {
+    const t = (await api.getSettings())['theme'];
+    this.theme = t === 'day' || t === 'system' ? t : 'night';
+    this.applyTheme();
+  }
+
   async setTheme(theme: 'night' | 'day' | 'system'): Promise<void> {
     this.theme = theme;
     this.applyTheme();

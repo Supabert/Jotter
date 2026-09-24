@@ -237,6 +237,7 @@ pub fn run() {
             settings::backup_now,
             quit_app,
             open_capture,
+            open_image_viewer,
             rebind_hotkey,
         ])
         .run(tauri::generate_context!())
@@ -299,6 +300,40 @@ fn rebind_hotkey(
             Err(e.to_string())
         }
     }
+}
+
+/// A note's image, full size, in Jotter's own window. One viewer at a time: a
+/// second click swaps the picture in the window already open.
+#[tauri::command]
+fn open_image_viewer(app: tauri::AppHandle, state: State<AppState>, file: String) -> Result<()> {
+    // Same traversal check as every other image reference; after it `file` is
+    // exactly `<hex>.<ext>`, so it is safe to write into the init script below.
+    images::image_path(state, file.clone())?;
+
+    // Off the event loop for the same reason as the capture window.
+    std::thread::spawn(move || {
+        if let Some(w) = app.get_webview_window("viewer") {
+            let _ = w.emit_to("viewer", "viewer:show", &file);
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+            return;
+        }
+        let built = WebviewWindowBuilder::new(&app, "viewer", WebviewUrl::App("index.html".into()))
+            .title("Jotter — image")
+            .initialization_script(format!("window.__jotterImage = {file:?};"))
+            .inner_size(960.0, 720.0)
+            .min_inner_size(320.0, 240.0)
+            .center()
+            .build();
+        match built {
+            Ok(w) => {
+                let _ = w.set_focus();
+            }
+            Err(e) => eprintln!("jotter: could not open the image viewer: {e}"),
+        }
+    });
+    Ok(())
 }
 
 #[tauri::command]

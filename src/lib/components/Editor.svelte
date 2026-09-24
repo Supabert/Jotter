@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { api, resolveImageSrc } from '../api';
-  import { openPath, openUrl } from '@tauri-apps/plugin-opener';
+  import { openUrl } from '@tauri-apps/plugin-opener';
   import { store } from '../store.svelte';
   import { sanitizeHtml, htmlToText, deriveTitle } from '../editor/sanitize';
   import {
@@ -211,6 +211,17 @@
   async function onPageClick(e: MouseEvent) {
     const el = e.target as HTMLElement | null;
 
+    // Click an image to see it full size in its own window.
+    const img = el?.closest('img[data-jt-img]')?.getAttribute('data-jt-img');
+    if (img && e.button === 0) {
+      try {
+        await api.openImageViewer(img);
+      } catch (err) {
+        store.flash(String(err), 'amber');
+      }
+      return;
+    }
+
     const chip = el?.closest('a.jt-file');
     if (chip) {
       const path = chip.getAttribute('data-jt-file');
@@ -246,8 +257,11 @@
       return;
     }
 
+    // Excel and Word put a picture of the selection on the clipboard beside
+    // the table itself. The table is the thing that was copied.
+    const html = dt.getData('text/html');
     const image = [...dt.items].find((i) => i.kind === 'file' && i.type.startsWith('image/'));
-    if (image) {
+    if (image && !/<table[\s>]/i.test(html)) {
       e.preventDefault();
       const file = image.getAsFile();
       if (file) await importImage(file);
@@ -256,7 +270,6 @@
 
     // Pasted markup is re-inserted only after the allowlist has been through
     // it. The clipboard's own HTML never reaches the document intact.
-    const html = dt.getData('text/html');
     if (html) {
       e.preventDefault();
       exec('insertHTML', sanitizeHtml(html));
@@ -265,18 +278,60 @@
     }
   }
 
-  /** Double-click a pasted image to see it at full size. The preview in the
-      note is deliberately capped, so there has to be a way through to the file
-      itself — and the file is the one the note references, not a copy. */
-  async function openImageUnderPointer(e: MouseEvent) {
-    const el = e.target as HTMLElement | null;
-    const file = el?.closest('img[data-jt-img]')?.getAttribute('data-jt-img');
-    if (!file) return;
-    try {
-      await openPath(await api.imagePath(file));
-    } catch (err) {
-      store.flash(String(err), 'amber');
-    }
+  // --- image resize --------------------------------------------------------
+
+  /** The image under the pointer, and where its corner grip sits in the sheet. */
+  let sheet = $state<HTMLDivElement | null>(null);
+  let gripImg = $state<HTMLImageElement | null>(null);
+  let grip = $state({ x: 0, y: 0 });
+  let dragging = false;
+
+  function placeGrip(img: HTMLImageElement) {
+    if (!sheet) return;
+    const r = img.getBoundingClientRect();
+    const s = sheet.getBoundingClientRect();
+    grip = { x: r.right - s.left + sheet.scrollLeft, y: r.bottom - s.top + sheet.scrollTop };
+    gripImg = img;
+  }
+
+  function onSheetMove(e: MouseEvent) {
+    if (dragging) return;
+    const el = e.target as HTMLElement;
+    if (el.classList.contains('img-grip')) return;
+    const img = el.closest<HTMLImageElement>('img[data-jt-img]');
+    if (img) placeGrip(img);
+    else gripImg = null;
+  }
+
+  /** Drag the corner to set the width; height follows the aspect ratio. The
+      width is stored on the image itself, so the note keeps it. */
+  function onGripDown(e: PointerEvent) {
+    const img = gripImg;
+    if (!img || !page) return;
+    e.preventDefault();
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    dragging = true;
+    const startX = e.clientX;
+    const startW = img.getBoundingClientRect().width;
+    const cs = getComputedStyle(page);
+    const maxW = page.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+
+    const move = (ev: PointerEvent) => {
+      const w = Math.round(Math.min(maxW, Math.max(48, startW + ev.clientX - startX)));
+      img.setAttribute('width', String(w));
+      placeGrip(img);
+    };
+    const up = () => {
+      dragging = false;
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', up);
+      target.removeEventListener('pointercancel', up);
+      markDirty();
+    };
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
   }
 
   /** A drag that began on this page — moving a sentence around — is left to
@@ -425,7 +480,8 @@
     </div>
   {/if}
 
-  <div class="sheet scroll">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="sheet scroll" bind:this={sheet} onmousemove={onSheetMove} onmouseleave={() => !dragging && (gripImg = null)}>
     <!-- The page: a lit plane inset behind a hairline margin rule, which is the
          printed checklist inside the panel. -->
     <div
@@ -444,13 +500,21 @@
       ondragover={(e) => e.preventDefault()}
       ondragstart={onDragStart}
       ondragend={() => (dragStartedHere = false)}
-      ondblclick={openImageUnderPointer}
       onclick={onPageClick}
       onauxclick={onPageClick}
       onblur={() => void flush()}
       onkeyup={syncMarks}
       onmouseup={syncMarks}
     ></div>
+    {#if gripImg}
+      <div
+        class="img-grip"
+        style="left: {grip.x}px; top: {grip.y}px"
+        role="separator"
+        aria-label="Drag to resize image"
+        onpointerdown={onGripDown}
+      ></div>
+    {/if}
   </div>
 </div>
 
@@ -493,6 +557,7 @@
     display: flex;
     justify-content: center;
     align-items: stretch;
+    position: relative;
   }
 
   .page {
@@ -575,19 +640,48 @@
     overflow-x: auto;
   }
 
-  /* A pasted screenshot is evidence inside a note, not the note. Capped so it
-     never pushes the prose off the screen — double-click opens the stored file
-     at full size in whatever the system views images with. */
+  /* Natural size up to the page width; the corner grip sets a width of its
+     own, stored on the image. A click opens it full size in its own window. */
   .page :global(img) {
     max-width: 100%;
-    max-height: 320px;
-    width: auto;
     height: auto;
     display: block;
     margin: 10px 0;
     border: 1px solid var(--hairline);
     border-radius: var(--r);
     cursor: zoom-in;
+  }
+
+  .img-grip {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    margin: -8px 0 0 -8px;
+    background: var(--ink);
+    border: 2px solid var(--panel-2);
+    border-radius: 2px;
+    cursor: nwse-resize;
+    touch-action: none;
+    z-index: 2;
+  }
+
+  .page :global(table) {
+    border-collapse: collapse;
+    margin: 10px 0;
+    max-width: 100%;
+  }
+
+  .page :global(th),
+  .page :global(td) {
+    border: 1px solid var(--hairline);
+    padding: 4px 8px;
+    vertical-align: top;
+    text-align: left;
+  }
+
+  .page :global(th) {
+    background: var(--panel-1);
+    font-weight: 600;
   }
 
   /* A file the note points at. Reads as an object in the prose rather than as

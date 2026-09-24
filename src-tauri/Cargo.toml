@@ -1,6 +1,6 @@
 [package]
 name = "jotter"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local rich-text notepad replacement with an actions page"
 authors = ["Supabert"]
 edition = "2021"

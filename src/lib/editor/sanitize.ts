@@ -12,7 +12,8 @@ const ALLOWED_TAGS = [
   'ul', 'ol', 'li',
   'h1', 'h2', 'h3',
   'blockquote', 'pre', 'code', 'hr',
-  'img', 'a'
+  'img', 'a',
+  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col'
 ];
 
 const ALLOWED_ATTR = [
@@ -22,6 +23,8 @@ const ALLOWED_ATTR = [
   'data-jt-img',
   'data-jt-file',
   'width',
+  'colspan',
+  'rowspan',
   'href'
 ];
 
@@ -160,7 +163,8 @@ export function htmlToText(html: string): string {
   const el = document.createElement('div');
   el.innerHTML = sanitizeHtml(html);
   el.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
-  el.querySelectorAll('p, div, li, h1, h2, h3, blockquote, pre').forEach((b) => {
+  el.querySelectorAll('td, th').forEach((c) => c.append('\t'));
+  el.querySelectorAll('p, div, li, h1, h2, h3, blockquote, pre, tr').forEach((b) => {
     b.append('\n');
   });
   return (el.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim();

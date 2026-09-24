@@ -204,6 +204,7 @@ export const api = {
   saveImage: (bytes: number[]) => invoke<SavedImage>('save_image', { bytes }),
   imagePath: (file: string) => invoke<string>('image_path', { file }),
 
+  openImageViewer: (file: string) => invoke<void>('open_image_viewer', { file }),
   getSettings: () => invoke<Record<string, string>>('get_settings'),
   setSetting: (key: string, value: string) => invoke<void>('set_setting', { key, value }),
   listLabels: () => invoke<Label[]>('list_labels'),
