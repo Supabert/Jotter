@@ -54,14 +54,13 @@
     const el = e.target as HTMLElement | null;
     if (el?.closest('.page')) return; // the note editor keeps its own paste
 
-    if (await store.pasteAsLink(a.id)) {
-      e.preventDefault();
-      return;
-    }
-
+    // Read before the first await: after it, the event has finished
+    // dispatching and clipboardData comes back empty.
     const files = [...(e.clipboardData?.files ?? [])];
-    if (!files.length) return;
-    e.preventDefault();
+    if (files.length) e.preventDefault();
+
+    if (await store.pasteAsLink(a.id)) return;
+
     for (const f of files) {
       const bytes = [...new Uint8Array(await f.arrayBuffer())];
       const name = f.name || `pasted-image.${(f.type.split('/')[1] || 'png').slice(0, 8)}`;

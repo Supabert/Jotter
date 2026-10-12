@@ -31,7 +31,12 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$DOCUMENT/Jotter/**"],
+          "allow": [
+            "$DOCUMENT/Jotter/images/**",
+            "$DOCUMENT/Jotter/files/**",
+            "$DOCUMENT/Jotter/*/images/**",
+            "$DOCUMENT/Jotter/*/files/**"
+          ],
           "deny": []
         }
       }
