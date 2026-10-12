@@ -83,6 +83,32 @@ export function clearFormatting(): void {
   document.execCommand('removeFormat');
 }
 
+/** A pasted PNG or BMP screenshot is re-encoded as lossless WebP: the same
+    pixels, usually well under half the bytes on disk. Anything with transparency
+    (canvas premultiplies alpha, which is not exact), anything already lossy or
+    animated, and anything that does not come out smaller is stored as pasted. */
+export async function compactImage(file: Blob): Promise<Uint8Array> {
+  const original = new Uint8Array(await file.arrayBuffer());
+  if (!/^image\/(png|bmp)$/.test(file.type)) return original;
+  try {
+    const bmp = await createImageBitmap(file, { colorSpaceConversion: 'none' });
+    const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+    const g = canvas.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(bmp, 0, 0);
+    bmp.close();
+    const px = g.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 3; i < px.length; i += 4) if (px[i] !== 255) return original;
+    // Chromium's WebP encoder switches to lossless at quality 1.
+    const webp = await canvas.convertToBlob({ type: 'image/webp', quality: 1 });
+    if (webp.type === 'image/webp' && webp.size < original.length) {
+      return new Uint8Array(await webp.arrayBuffer());
+    }
+  } catch {
+    /* an image the decoder rejects is still the user's: keep it as pasted */
+  }
+  return original;
+}
+
 export function insertImageRef(file: string, src: string): void {
   const img = document.createElement('img');
   img.setAttribute('data-jt-img', file);

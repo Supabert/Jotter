@@ -1,9 +1,15 @@
 use crate::error::Result;
 use crate::models::Label;
 use crate::AppState;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use std::collections::HashMap;
-use tauri::State;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
+use tauri::{Manager, State};
+
+/// Backups `backup_now` and the daily backup write, newest kept. Each is a
+/// full copy of the database, so without a cap a daily backup grows forever.
+const KEEP_BACKUPS: usize = 30;
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> Result<HashMap<String, String>> {
@@ -107,17 +113,72 @@ pub fn data_dir(state: State<AppState>) -> Result<String> {
 /// would multiply gigabytes for nothing.
 #[tauri::command]
 pub fn backup_now(state: State<AppState>) -> Result<String> {
-    let dir = state.data_dir.join("backups");
+    let conn = state.conn.lock().unwrap();
+    let dest = write_backup(&conn, &state.data_dir)?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+/// The `jotter-<stamp>.db` files in `backups/`, oldest first. Only names this
+/// code writes are listed, so a backup folder the user made by hand in there is
+/// never counted or pruned.
+fn own_backups(dir: &Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.is_file()
+                && p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("jotter-") && n.ends_with(".db"))
+        })
+        .collect();
+    found.sort(); // the stamp is zero-padded, so name order is time order
+    found
+}
+
+fn write_backup(conn: &Connection, data_dir: &Path) -> Result<PathBuf> {
+    let dir = data_dir.join("backups");
     std::fs::create_dir_all(&dir)?;
-    let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S");
+    let stamp = chrono::Local::now().format("%Y-%m-%d-%H%M%S-%3f");
     let dest = dir.join(format!("jotter-{stamp}.db"));
 
     // VACUUM INTO produces a single consistent file even with WAL mid-write,
     // which a plain file copy of jotter.db does not.
-    let conn = state.conn.lock().unwrap();
     conn.execute(
         "VACUUM INTO ?1",
         params![dest.to_string_lossy().to_string()],
     )?;
-    Ok(dest.to_string_lossy().into_owned())
+
+    let all = own_backups(&dir);
+    for old in all.iter().take(all.len().saturating_sub(KEEP_BACKUPS)) {
+        let _ = std::fs::remove_file(old);
+    }
+    Ok(dest)
+}
+
+/// One automatic backup a day. Jotter sits in the tray for weeks, so this is
+/// checked hourly rather than only at launch; the first check waits a minute so
+/// it never competes with startup.
+pub fn start_daily_backup(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(60));
+        loop {
+            let state = app.state::<AppState>();
+            let dir = state.data_dir.join("backups");
+            let newest = own_backups(&dir)
+                .last()
+                .and_then(|p| p.metadata().ok())
+                .and_then(|m| m.modified().ok());
+            let due = newest
+                .and_then(|t| SystemTime::now().duration_since(t).ok())
+                .map_or(true, |age| age >= Duration::from_secs(24 * 3600));
+            if due {
+                let conn = state.conn.lock().unwrap();
+                let _ = write_backup(&conn, &state.data_dir);
+            }
+            std::thread::sleep(Duration::from_secs(3600));
+        }
+    });
 }

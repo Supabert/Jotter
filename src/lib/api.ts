@@ -201,7 +201,9 @@ export const api = {
   openAttachment: (id: number) => invoke<void>('open_attachment', { id }),
   revealAttachment: (id: number) => invoke<void>('reveal_attachment', { id }),
 
-  saveImage: (bytes: number[]) => invoke<SavedImage>('save_image', { bytes }),
+  // Raw body, not a JSON array of numbers: a screenshot crosses as its own bytes
+  // instead of several times its size in text.
+  saveImage: (bytes: Uint8Array) => invoke<SavedImage>('save_image', bytes),
   imagePath: (file: string) => invoke<string>('image_path', { file }),
 
   openImageViewer: (file: string) => invoke<void>('open_image_viewer', { file }),

@@ -3,6 +3,7 @@ use crate::models::SavedImage;
 use crate::AppState;
 use sha2::{Digest, Sha256};
 use std::io::Write;
+use tauri::ipc::{InvokeBody, Request};
 use tauri::State;
 
 /// The extension is decided here from the bytes' own magic number, never from
@@ -25,9 +26,16 @@ fn sniff(bytes: &[u8]) -> Option<&'static str> {
 /// same screenshot into ten notes stores it once and nothing ever has to track
 /// references. Combined with never-delete, an image can never be orphaned by a
 /// note that still points at it.
+///
+/// The bytes arrive as the raw IPC body, not a JSON array of numbers, and the
+/// command is async so hashing and writing a large image never stalls the UI
+/// thread the webview runs on.
 #[tauri::command]
-pub fn save_image(state: State<AppState>, bytes: Vec<u8>) -> Result<SavedImage> {
+pub async fn save_image(state: State<'_, AppState>, request: Request<'_>) -> Result<SavedImage> {
     const MAX_BYTES: usize = 64 * 1024 * 1024;
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(Error::Msg("expected raw image bytes".into()));
+    };
     if bytes.is_empty() {
         return Err(Error::Msg("empty image".into()));
     }
@@ -38,11 +46,11 @@ pub fn save_image(state: State<AppState>, bytes: Vec<u8>) -> Result<SavedImage> 
         )));
     }
 
-    let ext = sniff(&bytes).ok_or_else(|| Error::Msg("unrecognized image format".into()))?;
+    let ext = sniff(bytes).ok_or_else(|| Error::Msg("unrecognized image format".into()))?;
 
     let hash = {
         let mut h = Sha256::new();
-        h.update(&bytes);
+        h.update(bytes);
         format!("{:x}", h.finalize())
     };
 
@@ -55,7 +63,7 @@ pub fn save_image(state: State<AppState>, bytes: Vec<u8>) -> Result<SavedImage> 
         let tmp = state.images_dir.join(format!("{hash}.part"));
         {
             let mut f = std::fs::File::create(&tmp)?;
-            f.write_all(&bytes)?;
+            f.write_all(bytes)?;
             f.sync_all()?;
         }
         std::fs::rename(&tmp, &path)?;

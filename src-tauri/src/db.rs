@@ -51,10 +51,18 @@ pub fn open(db_path: &Path) -> Result<Connection> {
         "PRAGMA journal_mode = {journal_mode};
          PRAGMA synchronous = NORMAL;
          PRAGMA foreign_keys = ON;
-         PRAGMA temp_store = MEMORY;"
+         PRAGMA temp_store = MEMORY;
+         PRAGMA journal_size_limit = 4194304;"
     ))?;
 
     migrate(db_path, current, &mut conn)?;
+
+    // Jotter lives in the tray and is ended by Windows shutdown, never by a
+    // clean close — the one moment SQLite folds the WAL back into the main file
+    // on its own. Without this, months of notes sat only in jotter.db-wal and a
+    // copy of jotter.db alone looked empty. Best effort: a reader elsewhere just
+    // makes it a partial checkpoint, which is still correct.
+    let _ = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()));
     Ok(conn)
 }
 

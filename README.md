@@ -58,7 +58,7 @@ All three matter, and two of them are not obvious:
 
 - **`JOTTER_DATA_DIR`** points the run at its own database. Without it a test run
   writes into your real notes, and the one delete that exists is permanent. Keep it
-  under `Documents\Jotter\` — the asset-protocol scope is `$DOCUMENT/Jotter/**`, so
+  under `Documents\Jotter\` — the asset-protocol scope is `images\` and `files\` one level under `Documents\Jotter\`, so
   a data dir anywhere else silently fails to show any image. Setting it also lifts
   the single-instance guard, since a run on its own database is not a rival for the
   one you are using.

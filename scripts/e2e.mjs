@@ -202,7 +202,7 @@ const run = async () => {
     const { api } = window.__jotter;
     // A 1x1 PNG, byte for byte — the store must sniff this, not trust a name.
     const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-    const bytes = [...atob(b64)].map(c => c.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const a = await api.saveImage(bytes);
     const b = await api.saveImage(bytes);
     let rejected = false;

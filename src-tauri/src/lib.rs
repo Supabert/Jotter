@@ -153,6 +153,7 @@ pub fn run() {
             // Linked files are outside the asset scope by definition, so the
             // grants have to be replayed before anything can preview one.
             let _ = attachments::allow_linked(&handle);
+            settings::start_daily_backup(handle.clone());
 
             register_hotkey(&handle, &hotkey);
             build_tray(&handle)?;
