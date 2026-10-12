@@ -158,6 +158,18 @@ try {
   out.typeP95Ms = +lat[Math.floor(lat.length * 0.95)].toFixed(1);
   out.mainThreadMsPerChar = +(((after - before) * 1000) / lat.length).toFixed(1);
 
+  // Where a keystroke's time goes: the app's input handler alone, versus the
+  // browser's own edit of the document.
+  out.split = await evaluate(`
+    const page = document.querySelector('[contenteditable=true]');
+    const time = (f) => { const t = performance.now(); for (let i = 0; i < 10; i++) f(); return +((performance.now() - t) / 10).toFixed(1); };
+    return {
+      handlerMs: time(() => page.dispatchEvent(new InputEvent('input', { bubbles: true }))),
+      keyupMs: time(() => page.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }))),
+      editMs: time(() => { document.execCommand('insertText', false, 'x'); page.offsetHeight; })
+    };
+  `);
+
   // Save timing: the same autosave command, 10 times, on the 2 MB body.
   out.saveNoteMs = await evaluate(`
     const n = await window.__TAURI_INTERNALS__.invoke('get_note', { id: ${id} });
@@ -200,8 +212,12 @@ try {
   out.image.storedFiles = files.map((f) => `${f.split('.').pop()}:${statSync(join(imgDir, f)).size}`);
 
   await stop(r.child);
+  // The WAL is folded back at the next open; measure it after a relaunch.
+  r = await coldStart();
+  await sleep(1000);
+  await stop(r.child);
   const wal = join(dataDir, 'jotter.db-wal');
-  out.walBytesAfterExit = (() => { try { return statSync(wal).size; } catch { return 0; } })();
+  out.walBytesAfterRelaunch = (() => { try { return statSync(wal).size; } catch { return 0; } })();
 } catch (err) {
   out.error = String(err?.stack ?? err);
 } finally {

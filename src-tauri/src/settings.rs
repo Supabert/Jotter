@@ -174,9 +174,13 @@ pub fn start_daily_backup(app: tauri::AppHandle) {
             let due = newest
                 .and_then(|t| SystemTime::now().duration_since(t).ok())
                 .map_or(true, |age| age >= Duration::from_secs(24 * 3600));
+            // Its own read connection, not the shared one: WAL lets it read
+            // alongside the app, so the VACUUM never holds the mutex every UI
+            // command waits on.
             if due {
-                let conn = state.conn.lock().unwrap();
-                let _ = write_backup(&conn, &state.data_dir);
+                if let Ok(conn) = Connection::open(state.data_dir.join("jotter.db")) {
+                    let _ = write_backup(&conn, &state.data_dir);
+                }
             }
             std::thread::sleep(Duration::from_secs(3600));
         }

@@ -78,8 +78,13 @@ All three matter, and two of them are not obvious:
 %USERPROFILE%\Documents\Jotter\
   jotter.db            SQLite, WAL
   images\<sha256>.png  every pasted image, content-addressed
-  backups\             written by Settings → Back up now
+  backups\             one automatically each day, plus Settings → Back up now;
+                       the newest 30 are kept
 ```
+
+Pasted PNG and BMP screenshots are stored as lossless WebP when that is smaller —
+the same pixels, usually well under half the bytes. Images with transparency are
+kept exactly as pasted.
 
 Images are keyed by the hash of their bytes, so pasting the same screenshot into ten
 notes stores one file. Note HTML records only the file name — never an absolute path —
