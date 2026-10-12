@@ -252,8 +252,11 @@ pub fn move_action(
 
     {
         let mut stmt = tx.prepare("UPDATE actions SET board_order = ?2 WHERE id = ?1")?;
+        // From 1, not 0: `db::open` backfills any board_order of 0 on every
+        // launch, so a 0 here sent the top card of a column back to its
+        // checklist position each restart.
         for (i, aid) in ids.iter().enumerate() {
-            stmt.execute(params![aid, i as f64])?;
+            stmt.execute(params![aid, (i + 1) as f64])?;
         }
     }
 

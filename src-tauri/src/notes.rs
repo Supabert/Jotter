@@ -40,8 +40,10 @@ pub fn list_notes(state: State<AppState>) -> Result<Vec<NoteSummary>> {
     Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
 }
 
+// Async, like save_note: a sync command runs on the UI thread the webview
+// shares, so reading a multi-megabyte body would freeze the window meanwhile.
 #[tauri::command]
-pub fn get_note(state: State<AppState>, id: i64) -> Result<Note> {
+pub async fn get_note(state: State<'_, AppState>, id: i64) -> Result<Note> {
     let conn = state.conn.lock().unwrap();
     let note = conn.query_row(
         "SELECT id, title, body_html, label_id, pinned, archived, created_at, updated_at
@@ -82,10 +84,13 @@ pub fn create_note(
 }
 
 /// The autosave target. Called on a 400 ms debounce and on every flush point,
-/// so it must stay a single cheap UPDATE.
+/// so it must stay a single cheap UPDATE. Async so it runs off the UI thread:
+/// a long note's UPDATE plus its FTS reindex took ~200 ms there, a stall that
+/// landed between keystrokes. The editor chains its saves, so they still land
+/// in order.
 #[tauri::command]
-pub fn save_note(
-    state: State<AppState>,
+pub async fn save_note(
+    state: State<'_, AppState>,
     id: i64,
     title: String,
     body_html: String,

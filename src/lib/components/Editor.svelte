@@ -10,6 +10,7 @@
     exec,
     initFormatting,
     insertImageRef,
+    compactImage,
     queryState,
     setColor,
     setFontSize,
@@ -136,24 +137,47 @@
     return { html, text: htmlToText(html) };
   }
 
-  export async function flush(): Promise<void> {
+  // save_note runs off the UI thread, so two saves could land out of order;
+  // chaining them keeps the newest body the one that sticks.
+  let saving: Promise<void> = Promise.resolve();
+
+  export function flush(): Promise<void> {
+    saving = saving.then(flushNow, flushNow);
+    return saving;
+  }
+
+  async function flushNow(): Promise<void> {
     if (!dirty || !loaded) return;
     dirty = false;
     const { html, text } = serialize();
-    const savedAt = await api.saveNote(noteId, deriveTitle(text), html, text);
+    countText(text);
+    let savedAt: string;
+    try {
+      savedAt = await api.saveNote(noteId, deriveTitle(text), html, text);
+    } catch (err) {
+      // Still dirty, so the next keystroke or flush point retries it.
+      dirty = true;
+      store.flash(`Not saved: ${err}`, 'red');
+      return;
+    }
     store.stats.savedAt = savedAt;
     await store.refreshNotes();
   }
 
   function recount() {
-    const text = page?.innerText ?? '';
+    countText(page?.innerText ?? '');
+  }
+
+  function countText(text: string) {
     store.stats.chars = text.length;
     store.stats.words = text.trim() ? text.trim().split(/\s+/).length : 0;
   }
 
+  // No recount here: innerText lays out the whole document, which on a long
+  // note cost more per keystroke than everything else together. The autosave
+  // already produces the plain text, and the counts come from that.
   function onInput() {
     markDirty();
-    recount();
     syncMarks();
   }
 
@@ -172,9 +196,8 @@
   // --- paste and drop ------------------------------------------------------
 
   async function importImage(file: File) {
-    const bytes = [...new Uint8Array(await file.arrayBuffer())];
     try {
-      const saved = await api.saveImage(bytes);
+      const saved = await api.saveImage(await compactImage(file));
       const src = await resolveImageSrc(saved.file);
       insertImageRef(saved.file, src);
       markDirty();
@@ -252,30 +275,32 @@
     const dt = e.clipboardData;
     if (!dt) return;
 
-    if (await pasteFilePaths()) {
-      e.preventDefault();
-      return;
-    }
+    // Everything is read and the native paste cancelled BEFORE the first await.
+    // Once this handler yields, the event has finished dispatching: a late
+    // preventDefault() no longer stops the browser pasting the clipboard's
+    // markup itself, unsanitized, and clipboardData reads come back empty.
+    const html = dt.getData('text/html');
+    const text = dt.getData('text/plain');
+    const image = [...dt.items]
+      .find((i) => i.kind === 'file' && i.type.startsWith('image/'))
+      ?.getAsFile();
+    e.preventDefault();
+
+    if (await pasteFilePaths()) return;
 
     // Excel and Word put a picture of the selection on the clipboard beside
     // the table itself. The table is the thing that was copied.
-    const html = dt.getData('text/html');
-    const image = [...dt.items].find((i) => i.kind === 'file' && i.type.startsWith('image/'));
     if (image && !/<table[\s>]/i.test(html)) {
-      e.preventDefault();
-      const file = image.getAsFile();
-      if (file) await importImage(file);
+      await importImage(image);
       return;
     }
 
     // Pasted markup is re-inserted only after the allowlist has been through
     // it. The clipboard's own HTML never reaches the document intact.
-    if (html) {
-      e.preventDefault();
-      exec('insertHTML', sanitizeHtml(html));
-      markDirty();
-      recount();
-    }
+    if (html) exec('insertHTML', sanitizeHtml(html));
+    else if (text) exec('insertText', text);
+    else return;
+    markDirty();
   }
 
   // --- image resize --------------------------------------------------------

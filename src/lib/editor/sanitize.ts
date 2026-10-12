@@ -160,8 +160,10 @@ export function sanitizeHtml(html: string, opts: { keepFileChips?: boolean } = {
 
 /** Plaintext mirror written on every save so FTS never has to parse HTML. */
 export function htmlToText(html: string): string {
-  const el = document.createElement('div');
-  el.innerHTML = sanitizeHtml(html);
+  // DOMParser builds an inert document — no script runs, no image loads — and
+  // only textContent leaves it, so this needs no sanitizer pass of its own. The
+  // autosave used to run DOMPurify twice over the whole note for that.
+  const el = new DOMParser().parseFromString(html, 'text/html').body;
   el.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
   el.querySelectorAll('td, th').forEach((c) => c.append('\t'));
   el.querySelectorAll('p, div, li, h1, h2, h3, blockquote, pre, tr').forEach((b) => {
